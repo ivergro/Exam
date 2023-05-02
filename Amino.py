@@ -29,6 +29,7 @@ class Amino:
         Array of all nearest neigbours. 0 marks unoccupied space. Ranges from 4-6 in size depending og dim
     """
     def __init__(self, type : int, pos : tuple, index : int, dim : int = 2) -> None:
+        assert (type >= 1 and type <= 20), f"Type got value: {type}, only valid between 1-20."
         self._type = type
         #self._NN = np.zeros(2*dim)
         self._NN = []
@@ -95,16 +96,16 @@ class Amino:
     #-----------Help functions----------
     def is_nearest_neighbour(self, amino) -> bool:
         #Checks if they are covalently bonded
-        if (abs(self.get_index() - amino.get_index()) is not 1):
+        if (abs(self.get_index() - amino.get_index()) != 1):
             #Substracting each x-y-z component to check distance vector
-            difference = tuple(map(lambda i, j: i - j, self.get_pos, amino.get_pos()))
+            difference = tuple(np.subtract(self.get_pos(), amino.get_pos()))
 
             #Sjekker om avstanden mellom de er 1, er den mer så er de ikke naboer, er den 0 så er de den samme monomeren
             if np.linalg.norm(difference) == 1:
-                return True
+                return True                                 
         return False
     
-    def find_nearest_neigbours(self, chain) -> None:
+    def find_nearest_neighbours(self, chain) -> None:
         for amino in chain:
             #Checks if theyre neigbhours, and if theyre already in the list
             if (self.is_nearest_neighbour(amino)) and (amino not in self.get_NN()):
@@ -123,5 +124,44 @@ class Amino:
         for amino in chain:
             if self.is_nearest_neighbour(amino):
                 self.set_NN(amino)
+
+    def does_collide(self, chain) -> bool:
+        """
+        Returns true if monomer collides with chain
+        """
+        for amino in chain:
+            if self.get_pos() == amino.get_pos() and self.get_index() != amino.get_index():
+                return True
+        return False
+    
+    def can_move_to(self, chain):
+        index = self.get_index()
+        old_pos = self.get_pos()
+        occupied_spots = []
+        available_spots = []
+        for amino in chain:
+            occupied_spots.append(amino.get_pos())
+
+        #Tail or head
+        if index == 0 or index == (len(chain) - 1):
+            if index == 0:
+                neighbour_index = index + 1
+            else:
+                neighbour_index = index - 1
+            #Neighbour spots of previous monomer
+            neighbour_spots = [(1,0),(0,1),(-1,0),(0,-1)]
+            for ns in neighbour_spots:
+                if occupied_spots.count(tuple(np.add(ns, chain[neighbour_index].get_pos()))) == 0:
+                    print(np.add(ns, chain[neighbour_index].get_pos()))
+                    available_spots.append(ns)
+
+        elif np.linalg.norm(np.subtract(chain[index + 1].get_pos(), chain[index - 1].get_pos())) > 2:
+            #New pos takes both self pos and new pos just to make it general
+            new_pos = [(chain[index - 1].get_pos()[0],chain[index + 1].get_pos()[1]), (chain[index + 1].get_pos()[0],chain[index - 1].get_pos()[1])]
+            for new_p in new_pos:
+                if occupied_spots.count(new_p):
+                    available_spots.append(new_p)
+  
+        return available_spots
 
     
