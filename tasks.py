@@ -21,7 +21,7 @@ def initialize(N : int, dim = 2, random = True):
                 chain[i + 1].set_pos(new_pos)
                 assert tries < 20, "Exceeded 20 tries, something is wrong."
         else:
-            new_pos = (i,0)
+            new_pos = (i+1,0)
             chain.append(Amino(type = r.randint(1,20), pos=new_pos, index= i+1, dim=dim))
     #Finding nearest neigbhours
     for amino in chain:
@@ -34,7 +34,7 @@ def initialize(N : int, dim = 2, random = True):
 def interaction_energy_matrix() -> np.ndarray:
     #Giving lower triangle values
     low_triangle_indices = np.tril_indices(20)
-    random_vals = np.random.uniform(-2*Boltzmann, -4*Boltzmann, len(low_triangle_indices[0]))
+    random_vals = np.random.uniform(-2, -4, len(low_triangle_indices[0]))
     random_matrix = np.zeros((20,20))
     random_matrix[low_triangle_indices] = random_vals
 
@@ -53,10 +53,26 @@ def calculate_interaction_energy(chain, energy_matrix):
     total_J /= 2 #Removing double counting
     return total_J
 
-def calculate_ROG(chain, r):
-    mr2 = sum([amino.m*r**2 for amino in chain])
-    M   = sum([amino.m for amino in chain])
-    return np.sqrt(mr2/M)
+def center_of_mass(chain : np.ndarray) -> tuple:
+    #Assuming mass of amino to be 1 for all types
+    N = len(chain)
+    M = N*1
+    pos = [amino.get_pos() for amino in chain]
+    sum_pos = np.sum(pos, axis=0)
+    # R = tuple((1/M)*np.add([amino.get_pos() for amino in chain]))
+    R = 1/M*sum_pos
+    return tuple(R)
+
+def calculate_ROG(chain):
+    #Assuming mass of amino to be 1 for all types
+    N = len(chain)
+    M   = N*1
+    CoM = center_of_mass(chain)
+    #Calculate distance from center of mass, r
+    r2_sum = sum([np.linalg.norm(np.subtract(amino.get_pos(), CoM))**2 for amino in chain])
+    #sum up and then take square root of all squared r's
+    #r2 = sum([r**2 for amino in chain])
+    return np.sqrt(r2_sum/M), CoM
 
 def Monte_Carlo(chain : np.ndarray, T):
     N = len(chain)
@@ -73,29 +89,23 @@ def Monte_Carlo(chain : np.ndarray, T):
             if E_flip < 0:
                 flip = True
             #Not favourable to flip, but still a possibility that it might happen
-            elif E_flip > 0:
+            elif E_flip >= 0:
                 random = r.random()
-                boltz_fac = np.exp(-E_flip/(Boltzmann*T))
-                if random > boltz_fac:
+                boltz_fac = np.exp(-E_flip/(T))
+                if random < boltz_fac:
                     flip = True
                 else:
                     flip = False
             if flip:
-                print("moved index: ", index, "to ", new_step)
                 chain[index].set_pos(new_step)
                 chain[index].update_NN(chain)
                 flips += 1
     #Logging a sweep
-    new_energy = calculate_interaction_energy(chain, energy_matrix)
-    delta_E = (new_energy - old_energy)/Boltzmann
-    end_to_end = np.linalg.norm((chain[-1].get_pos(),chain[0].get_pos()))
-    logging.info({"delta_E": delta_E, "flips": flips, "total_E": new_energy, "RoG": None,"end_to_end": end_to_end})
-
+    logger(chain, old_energy, flips)
+    
 def Monte_Carlo_step(amino : Amino, chain : np.ndarray) :
     available_spots = amino.can_move_to(chain)
     if len(available_spots) > 0:
-        print("original spot: ", amino.get_pos())
-        print("Available spots:" , available_spots)
         new_spot = available_spots[r.randint(0,len(available_spots) - 1)]
         index = amino.get_index()
         old_energy = calculate_interaction_energy(chain, energy_matrix)
@@ -104,17 +114,21 @@ def Monte_Carlo_step(amino : Amino, chain : np.ndarray) :
         new_chain[index].set_pos(new_spot)
         new_chain[index].update_NN(new_chain)
         new_energy = calculate_interaction_energy(new_chain, energy_matrix)
-        delta_E = new_energy/Boltzmann - old_energy/Boltzmann
-        #print("Delta E: ", new_energy/Boltzmann - old_energy/Boltzmann)
-        #print("moved index: ", index, "to ", new_spot)
-        # plots.plot_positions(chain, old_energy)
-        # plots.plot_positions(new_chain, new_energy)
+        delta_E = new_energy - old_energy
         return True, new_spot, delta_E
     return False, None, None
 
+def logger(chain : np.ndarray, old_energy : float, flips : int):
+    new_energy = calculate_interaction_energy(chain, energy_matrix)
+    delta_E = (new_energy - old_energy)
+    end_to_end = np.linalg.norm((chain[-1].get_pos(),chain[0].get_pos()))
+    RoG, CoM = calculate_ROG(chain)
+    logging.info({"delta_E": round(delta_E,3), "flips_during_sweep": flips, "total_E": round(new_energy,3), "RoG":round(RoG,2),"end_to_end": round(end_to_end,2)})
+
+
 
 def task_21(): 
-    chain= initialize(15, 2)
+    chain= initialize(15, dim = 2)
     total_int_energy = calculate_interaction_energy(chain, energy_matrix)
     print("Energy: ", total_int_energy)
     plots.plot_positions(chain, total_int_energy)
@@ -122,15 +136,15 @@ def task_21():
 
 def task_25():
     N = 15
-    T = 10
+    T = 1
     sweeps = 100
-    chain = initialize(N, 2, random=True)
+    chain = initialize(N, dim = 2, random=False)
     plots.plot_positions(chain, calculate_interaction_energy(chain, energy_matrix))
-    for x in range(sweeps):
+    logging.basicConfig(filename=f'loggers/task_25/N={N}_T={T}_sweeps={sweeps}.log', encoding='utf-8', level=logging.INFO)
+    for x in range(1, sweeps + 1):
         Monte_Carlo(chain, T)
-        if x%10 == 0:
+        if x == 1 or x == 10 or x == 100:
             new_E = calculate_interaction_energy(chain, energy_matrix)
-            print_NN(chain)
             plots.plot_positions(chain, new_E)
 
 def task_27(): 
@@ -150,9 +164,9 @@ def print_NN(chain):
 #Defined here so it remains constant during sim
 energy_matrix = interaction_energy_matrix()
 
-logging.basicConfig(filename='example.log', encoding='utf-8', level=logging.INFO)
+
 task_25()
-logging.getLogger("example.log")
+#logging.getLogger("example.log")
 
 
 

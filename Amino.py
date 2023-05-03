@@ -117,16 +117,12 @@ class Amino:
     def update_NN(self, chain) -> None:
         #Removing old ones first, looping backwards to avoid removing the first object, and never reach the second, and so fort
         for i in range(len(self.get_NN())-1,-1, -1):
-            print(i)
             old_NN = self.get_NN()[i]
             if not self.is_nearest_neighbour(old_NN):
                 self.remove_NN(old_NN)
                 old_NN.remove_NN(self)
         
         #Updating
-        #for amino in chain:
-        #     if self.is_nearest_neighbour(amino):
-        #         self.set_NN(amino)
         self.find_nearest_neighbours(chain)
 
     def does_collide(self, chain) -> bool:
@@ -157,7 +153,7 @@ class Amino:
             for ns in neighbour_spots:
                 temp_p = tuple(np.add(ns, chain[neighbour_index].get_pos()))
                 if occupied_spots.count(temp_p) == 0:
-                    #print(np.add(ns, chain[neighbour_index].get_pos()))
+        
                     available_spots.append(temp_p)
 
         #Cornered amino

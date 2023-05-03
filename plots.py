@@ -30,7 +30,7 @@ def plot_positions(chain, total_int_energy):
     # ax.set_xlim(0,gridsize)
     ax.set_aspect("equal")
     ax.set_adjustable("datalim")
-    ax.annotate("Interaction energy: {%.3f}Kb" % (total_int_energy/Boltzmann),xy = (0.0,1.05),fontsize = 10, xycoords="axes fraction") #{%.3d}" % total_int_energy,xy
+    ax.annotate("Interaction energy: {%.3f}Kb" % (total_int_energy),xy = (0.0,1.05),fontsize = 10, xycoords="axes fraction") #{%.3d}" % total_int_energy,xy
 
     plt.show()
 
