@@ -115,15 +115,19 @@ class Amino:
 
     #Could make a tempchain, pop NN values, and loop over it the second time to minimize runtime
     def update_NN(self, chain) -> None:
-        #Removing old ones first
-        for old_NN in self._NN:
+        #Removing old ones first, looping backwards to avoid removing the first object, and never reach the second, and so fort
+        for i in range(len(self.get_NN())-1,-1, -1):
+            print(i)
+            old_NN = self.get_NN()[i]
             if not self.is_nearest_neighbour(old_NN):
                 self.remove_NN(old_NN)
+                old_NN.remove_NN(self)
         
         #Updating
-        for amino in chain:
-            if self.is_nearest_neighbour(amino):
-                self.set_NN(amino)
+        #for amino in chain:
+        #     if self.is_nearest_neighbour(amino):
+        #         self.set_NN(amino)
+        self.find_nearest_neighbours(chain)
 
     def does_collide(self, chain) -> bool:
         """
@@ -136,11 +140,11 @@ class Amino:
     
     def can_move_to(self, chain):
         index = self.get_index()
+        # if index != 0 and index != len(chain) -1:
+        #     pass
         old_pos = self.get_pos()
-        occupied_spots = []
+        occupied_spots = [amino.get_pos() for amino in chain]
         available_spots = []
-        for amino in chain:
-            occupied_spots.append(amino.get_pos())
 
         #Tail or head
         if index == 0 or index == (len(chain) - 1):
@@ -151,15 +155,17 @@ class Amino:
             #Neighbour spots of previous monomer
             neighbour_spots = [(1,0),(0,1),(-1,0),(0,-1)]
             for ns in neighbour_spots:
-                if occupied_spots.count(tuple(np.add(ns, chain[neighbour_index].get_pos()))) == 0:
-                    print(np.add(ns, chain[neighbour_index].get_pos()))
-                    available_spots.append(ns)
+                temp_p = tuple(np.add(ns, chain[neighbour_index].get_pos()))
+                if occupied_spots.count(temp_p) == 0:
+                    #print(np.add(ns, chain[neighbour_index].get_pos()))
+                    available_spots.append(temp_p)
 
-        elif np.linalg.norm(np.subtract(chain[index + 1].get_pos(), chain[index - 1].get_pos())) > 2:
+        #Cornered amino
+        elif np.linalg.norm(np.subtract(chain[index + 1].get_pos(), chain[index - 1].get_pos())) < 2:
             #New pos takes both self pos and new pos just to make it general
             new_pos = [(chain[index - 1].get_pos()[0],chain[index + 1].get_pos()[1]), (chain[index + 1].get_pos()[0],chain[index - 1].get_pos()[1])]
             for new_p in new_pos:
-                if occupied_spots.count(new_p):
+                if occupied_spots.count(new_p) == 0:
                     available_spots.append(new_p)
   
         return available_spots
