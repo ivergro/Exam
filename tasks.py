@@ -1,10 +1,10 @@
 import numpy as np
 from Amino import Amino
 import plots
-from scipy.constants import Boltzmann
 import random as r
 import copy
-import logging
+from time import time
+import os
 
 def initialize(N : int, dim = 2, random = True):
     chain = []
@@ -63,7 +63,7 @@ def center_of_mass(chain : np.ndarray) -> tuple:
     R = 1/M*sum_pos
     return tuple(R)
 
-def calculate_ROG(chain):
+def calculate_ROG(chain) -> float:
     #Assuming mass of amino to be 1 for all types
     N = len(chain)
     M   = N*1
@@ -73,6 +73,14 @@ def calculate_ROG(chain):
     #sum up and then take square root of all squared r's
     #r2 = sum([r**2 for amino in chain])
     return np.sqrt(r2_sum/M), CoM
+
+def end_to_end(chain):
+    if np.linalg.norm(np.subtract(chain[-1].get_pos(),chain[0].get_pos())) > (len(chain)-1):
+        print("----")
+        print(chain[-1].get_pos())
+        print(chain[0].get_pos())
+        print("....")
+    return np.linalg.norm(np.subtract(chain[-1].get_pos(),chain[0].get_pos()))
 
 def Monte_Carlo(chain : np.ndarray, T):
     N = len(chain)
@@ -100,8 +108,7 @@ def Monte_Carlo(chain : np.ndarray, T):
                 chain[index].set_pos(new_step)
                 chain[index].update_NN(chain)
                 flips += 1
-    #Logging a sweep
-    logger(chain, old_energy, flips)
+    
     
 def Monte_Carlo_step(amino : Amino, chain : np.ndarray) :
     available_spots = amino.can_move_to(chain)
@@ -123,7 +130,8 @@ def logger(chain : np.ndarray, old_energy : float, flips : int):
     delta_E = (new_energy - old_energy)
     end_to_end = np.linalg.norm((chain[-1].get_pos(),chain[0].get_pos()))
     RoG, CoM = calculate_ROG(chain)
-    logging.info({"delta_E": round(delta_E,3), "flips_during_sweep": flips, "total_E": round(new_energy,3), "RoG":round(RoG,2),"end_to_end": round(end_to_end,2)})
+    #info_dict = {"delta_E": round(delta_E,3), "flips_during_sweep": flips, "total_E": round(new_energy,3), "RoG":round(RoG,2),"end_to_end": round(end_to_end,2)}
+    #logging.info({"delta_E": round(delta_E,3), "flips_during_sweep": flips, "total_E": round(new_energy,3), "RoG":round(RoG,2),"end_to_end": round(end_to_end,2)})
 
 
 
@@ -134,39 +142,97 @@ def task_21():
     plots.plot_positions(chain, total_int_energy)
     return chain
 
-def task_25():
-    N = 15
-    T = 1
-    sweeps = 100
+def task_25_6(save = True):
+    N = 100
+    T = 3
+    sweeps = 1000
     chain = initialize(N, dim = 2, random=False)
-    plots.plot_positions(chain, calculate_interaction_energy(chain, energy_matrix))
-    logging.basicConfig(filename=f'loggers/task_25/N={N}_T={T}_sweeps={sweeps}.log', encoding='utf-8', level=logging.INFO)
+    start_energy = calculate_interaction_energy(chain, energy_matrix)
+    plots.plot_positions(chain, start_energy)
+    filename =f'loggers/N={N}_T={T}_sweeps={sweeps}/'
+    if not os.path.exists(filename):
+    # If it doesn't exist, create it
+        os.makedirs(filename)
+    
+    #Saving important parameters to a list
+    energies = np.zeros(sweeps + 1)
+    end_to_ends = np.zeros(sweeps + 1)
+    RoGs    = np.zeros(sweeps+1)
+
+    #Adding original values
+    energies[0] = start_energy
+    end_to_ends[0] = end_to_end(chain)
+    RoGs[0] = calculate_ROG(chain)[0]
+
     for x in range(1, sweeps + 1):
         Monte_Carlo(chain, T)
-        if x == 1 or x == 10 or x == 100:
-            new_E = calculate_interaction_energy(chain, energy_matrix)
-            plots.plot_positions(chain, new_E)
-
+        new_E = calculate_interaction_energy(chain, energy_matrix)
+        #Adding new values after a sweep
+        energies[x] = new_E
+        end_to_ends[x] = end_to_end(chain)
+        RoGs[x] = calculate_ROG(chain)[0]
+        if (x%(sweeps//3) == 0)and save:
+            #plots.plot_positions(chain, new_E)
+            np.save(filename + f"step={x}_positions", chain)
+    #Saving for later use
+    if save:
+        np.save(filename + "energies", energies)
+        np.save(filename + "end_to_ends", end_to_ends)
+        np.save(filename + "RoGs", RoGs)
+    plots.plot_RoG_ete_energy(RoGs, end_to_ends, energies)
+    plots.plot_positions(chain, calculate_interaction_energy(chain, energy_matrix))
+    
 def task_27(): 
-    N = [15, 50, 100] #Kan endres
+    #Runs for wanted parameters
+    Ns = [15, 50, 100] #Kan endres
+    Ts = [0.1, 0.5, 1, 2, 3, 4, 5, 6, 7, 8 , 9, 10]
+    sweeps = 2000
     #a) plot E og RoG mot antall sweeps, for ulike T. Hvor lang tid tar det å nå likevekt for ulik T
     #b) 
     #c) Hva er kritisk temp, altså T hvor faseoverganger skjer? Er det likt for de ulike N'ene
+    for N in Ns:
+        chain = initialize(N, dim = 2, random=False)
+        start_energy = calculate_interaction_energy(chain, energy_matrix)
 
+        for T in Ts:
+            filename =f'loggers/Task_27/N={N}_T={T}_sweeps={sweeps}/'
+            if not os.path.exists(filename):
+            # If it doesn't exist, create it
+                os.makedirs(filename)
+            
+            #Saving important parameters to a list
+            energies = np.zeros(sweeps + 1)
+            end_to_ends = np.zeros(sweeps + 1)
+            RoGs    = np.zeros(sweeps+1)
 
-def print_NN(chain):
-    for amino in chain:
-        print("Index: ", amino.get_index(), " pos: ", amino.get_pos())
-        NN = amino.get_NN()
-        for n_amino in NN:
-            print("NN: ", n_amino.get_index(), "pos: ", n_amino.get_pos())
+            #Adding original values
+            energies[0] = start_energy
+            end_to_ends[0] = end_to_end(chain)
+            RoGs[0] = calculate_ROG(chain)[0]
 
+            for x in range(1, sweeps + 1):
+                Monte_Carlo(chain, T)
+                new_E = calculate_interaction_energy(chain, energy_matrix)
+                #Adding new values after a sweep
+                energies[x] = new_E
+                end_to_ends[x] = end_to_end(chain)
+                RoGs[x] = calculate_ROG(chain)[0]
+                if (x == sweeps):
+                    #plots.plot_positions(chain, new_E)
+                    np.save(filename + f"step={x}_positions", chain)
+            #Saving for later use
+            np.save(filename + "energies", energies)
+            np.save(filename + "end_to_ends", end_to_ends)
+            np.save(filename + "RoGs", RoGs)
+        
 #Defined here so it remains constant during sim
 energy_matrix = interaction_energy_matrix()
 
+t_0 = time()
 
-task_25()
-#logging.getLogger("example.log")
+task_27()
+
+print("Time of sim: ", time() - t_0)
 
 
 
